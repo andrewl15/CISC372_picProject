@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <string.h>
+#include <pthread.h>
 #include "image.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -51,21 +52,61 @@ uint8_t getPixelValue(Image* srcImage,int x,int y,int bit,Matrix algorithm){
     return result;
 }
 
+// a struct used to pass parameter to thread working function
+struct args_t {
+    int row;
+    Image *srcImage;
+    Image *destImage;
+    Matrix algorithm;
+};
+
+// thread working function
+void *thread_work(void *vargs) {
+
+    struct args_t *parg = (struct args_t *) vargs;
+    int pix, bit;
+    for (pix = 0; pix < parg->srcImage->width; pix++) {
+        for (bit = 0; bit < parg->srcImage->bpp; bit++) {
+            parg->destImage
+                ->data[Index(pix, parg->row, parg->srcImage->width, bit, parg->srcImage->bpp)]
+                = getPixelValue(parg->srcImage, pix, parg->row, bit, parg->algorithm);
+        }
+    }
+    free(parg);
+    return NULL;
+}
+
 //convolute:  Applies a kernel matrix to an image
 //Parameters: srcImage: The image being convoluted
 //            destImage: A pointer to a  pre-allocated (including space for the pixel array) structure to receive the convoluted image.  It should be the same size as srcImage
 //            algorithm: The kernel matrix to use for the convolution
 //Returns: Nothing
-void convolute(Image* srcImage,Image* destImage,Matrix algorithm){
-    int row,pix,bit,span;
-    span=srcImage->bpp*srcImage->bpp;
-    for (row=0;row<srcImage->height;row++){
-        for (pix=0;pix<srcImage->width;pix++){
-            for (bit=0;bit<srcImage->bpp;bit++){
-                destImage->data[Index(pix,row,srcImage->width,bit,srcImage->bpp)]=getPixelValue(srcImage,pix,row,bit,algorithm);
+void convolute(Image *srcImage, Image *destImage, Matrix algorithm) {
+    int row, pix, bit, span, i, j;
+    span = srcImage->bpp * srcImage->bpp;
+
+    pthread_t *pids = (pthread_t *) malloc(sizeof(pthread_t) * srcImage->height);
+
+    for (row = 0; row < srcImage->height; row++) {
+        // make a copy of input parameter
+        struct args_t *parg = (struct args_t *) malloc(sizeof(struct args_t));
+        parg->row = row;
+        parg->srcImage = srcImage;
+        parg->destImage = destImage;
+        for (i = 0; i < 3; i++) {
+            for (j = 0; j < 3; j++) {
+                parg->algorithm[i][j] = algorithm[i][j];
             }
         }
+        // create thread
+        pthread_create(pids + row, NULL, thread_work, parg);
     }
+
+    // wait for all thread exit
+    for (row = 0; row < srcImage->height; row++) {
+        pthread_join(pids[row], NULL);
+    }
+    free(pids);
 }
 
 //Usage: Prints usage information for the program
