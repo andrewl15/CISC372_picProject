@@ -53,7 +53,7 @@ uint8_t getPixelValue(Image* srcImage,int x,int y,int bit,Matrix algorithm){
 }
 
 // a struct used to pass parameter to thread working function
-struct args_t {
+struct gpu {
     int row;
     Image *srcImage;
     Image *destImage;
@@ -63,7 +63,7 @@ struct args_t {
 // thread working function
 void *thread_work(void *vargs) {
 
-    struct args_t *parg = (struct args_t *) vargs;
+    struct gpu *parg = (struct gpu *) vargs;
     int pix, bit;
     for (pix = 0; pix < parg->srcImage->width; pix++) {
         for (bit = 0; bit < parg->srcImage->bpp; bit++) {
@@ -89,7 +89,7 @@ void convolute(Image *srcImage, Image *destImage, Matrix algorithm) {
 
     for (row = 0; row < srcImage->height; row++) {
         // make a copy of input parameter
-        struct args_t *parg = (struct args_t *) malloc(sizeof(struct args_t));
+        struct gpu *parg = (struct gpu *) malloc(sizeof(struct gpu));
         parg->row = row;
         parg->srcImage = srcImage;
         parg->destImage = destImage;
